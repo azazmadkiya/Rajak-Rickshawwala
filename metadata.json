@@ -1,0 +1,6 @@
+{
+  "name": "Rajak Rickshawwala",
+  "description": "Professional auto-rickshaw transport service app for Rajak Parmar with direct booking, fare calculator, UPI payments, and WhatsApp integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
