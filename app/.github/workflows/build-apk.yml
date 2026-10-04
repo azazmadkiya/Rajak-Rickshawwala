@@ -33,9 +33,8 @@ jobs:
           if [ -z "$JAVA_VERSION" ]; then
             echo "Error: Could not detect Java version."
             exit 1
-          }
+          fi
           
-          # Extract major version (handling 17, 1.8, etc.)
           if [[ "$JAVA_VERSION" == 1.* ]]; then
             JAVA_MAJOR_VERSION=$(echo "$JAVA_VERSION" | cut -d'.' -f2)
           else
@@ -115,9 +114,8 @@ jobs:
         run: |
           mkdir -p release_asset_dir
           
-          # Sanitize repository name
           REPO_NAME=$(echo "${{ github.repository }}" | sed 's#.*/##' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/_/g')
-          ASSET_NAME="${REPO_NAME}-debug-build-${{ github.run_number }}.apk"
+          ASSET_NAME="${REPO_NAME}-debug-build-${{ github.run_number }}-${{ github.run_attempt }}.apk"
           ASSET_PATH="release_asset_dir/${ASSET_NAME}"
           
           cp app/build/outputs/apk/debug/app-debug.apk "$ASSET_PATH"
@@ -149,7 +147,12 @@ jobs:
           fi
           
           TAG_NAME="debug-apk-build-${{ github.run_number }}-${{ github.run_attempt }}"
-          RELEASE_TITLE="Debug APK Build #${{ github.run_number }}"
+          RELEASE_TITLE="Debug APK Build #${{ github.run_number }} (Attempt ${{ github.run_attempt }})"
+          
+          # Clean up any existing release or tag with this name to avoid conflicts
+          echo "Cleaning up any existing release/tag with name $TAG_NAME..."
+          gh release delete "$TAG_NAME" --yes --cleanup-tag || true
+          git push origin --delete "$TAG_NAME" || true
           
           RELEASE_NOTES=$(cat <<EOF
           - This is an automatically generated debug APK.
@@ -198,10 +201,11 @@ jobs:
             echo "The normal Actions artifact (app-debug-apk) is also available as a backup." >> $GITHUB_STEP_SUMMARY
           else
             echo "Warning: GitHub Release publishing failed or was skipped."
-            echo "However, the APK build and Actions artifact upload succeeded!"
+            echo "Please ensure repository settings -> Actions -> General -> Workflow permissions is set to 'Read and write permissions'."
             
             echo "### GitHub Release Notice" >> $GITHUB_STEP_SUMMARY
-            echo "- **Warning:** Automatic release publishing encountered an issue." >> $GITHUB_STEP_SUMMARY
+            echo "- **Warning:** Automatic release publishing encountered an issue (commonly caused by Read-Only repository workflow permissions)." >> $GITHUB_STEP_SUMMARY
+            echo "- **How to Fix:** Go to repository **Settings** -> **Actions** -> **General** -> **Workflow permissions** and select **Read and write permissions**." >> $GITHUB_STEP_SUMMARY
             echo "- **APK Build Status:** Succeeded." >> $GITHUB_STEP_SUMMARY
             echo "- **Actions Artifact:** The Actions artifact named **app-debug-apk** remains fully available for download in the workflow run summary." >> $GITHUB_STEP_SUMMARY
           fi
