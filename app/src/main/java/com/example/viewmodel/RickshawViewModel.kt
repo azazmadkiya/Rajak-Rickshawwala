@@ -542,24 +542,24 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val displayEmail = if (rawEmail.isNotEmpty() && !rawEmail.endsWith("@rajakrickshaw.com")) rawEmail else ""
 
     val message = buildString {
-      append("🛺 *New Auto Rickshaw Booking*\n")
-      append("*Rajak Rickshawwala* (+918200019788)\n\n")
-      append("👤 *Passenger Name:* $pName\n")
-      append("📞 *Mobile Number:* $pMobile\n")
-      append("🏠 *Address:* $pAddress\n")
+      append("🛺 *ઓટો રીક્ષા બુકિંગ (Auto Rickshaw Booking)*\n")
+      append("*રજાક રીક્ષાવાળા* (+918200019788)\n\n")
+      append("👤 *મુસાફરનું નામ:* $pName\n")
+      append("📞 *મોબાઇલ નંબર:* $pMobile\n")
+      append("🏠 *સરનામું:* $pAddress\n")
       if (displayEmail.isNotEmpty()) {
-        append("✉️ *Email:* $displayEmail\n")
+        append("✉️ *ઇમેઇલ:* $displayEmail\n")
       }
-      append("\n📍 *Pickup Location:* $p\n")
-      if (pLink.isNotEmpty()) append("🔗 *Pickup Map Link:* $pLink\n")
-      append("🏁 *Drop Destination:* $d\n")
-      if (dLink.isNotEmpty()) append("🔗 *Drop Map Link:* $dLink\n")
-      append("💰 *Fare / Bhada:* To be decided by Driver (ड्राइवर तय करेंगे)\n")
+      append("\n📍 *પીકઅપ સ્થળ:* $p\n")
+      if (pLink.isNotEmpty()) append("🔗 *પીકઅપ મેપ લિંક:* $pLink\n")
+      append("🏁 *ડ્રોપ સ્થળ:* $d\n")
+      if (dLink.isNotEmpty()) append("🔗 *ડ્રોપ મેપ લિંક:* $dLink\n")
+      append("💰 *ભાડું:* ડ્રાઈવર ને ભાડુ પૂછો (ડ્રાઈવર નક્કી કરશે)\n")
       if (n.isNotEmpty()) {
-        append("📝 *Notes / Luggage:* $n\n")
+        append("📝 *નોંધ / સામાન:* $n\n")
       }
-      append("📅 *Booking Time:* ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())}\n\n")
-      append("Please confirm this auto rickshaw ride and fare on WhatsApp! Thank you.")
+      append("📅 *બુકિંગ સમય:* ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())}\n\n")
+      append("કૃપા કરીને આ રીક્ષા રાઇડ અને ભાડું વોટ્સએપ પર કન્ફર્મ કરો! આભાર.")
     }
 
     val user = getFirebaseAuth()?.currentUser
