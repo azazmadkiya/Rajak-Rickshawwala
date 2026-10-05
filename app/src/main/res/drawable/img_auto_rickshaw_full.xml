@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="240dp"
+    android:viewportWidth="320"
+    android:viewportHeight="240">
+
+    <!-- Headlight glow beam -->
+    <path
+        android:pathData="M245,155 L315,130 L315,200 L245,165 Z"
+        android:fillColor="#25FEF08A" />
+
+    <!-- Road Surface Shadow -->
+    <path
+        android:pathData="M40,210 C80,218 240,218 290,210 C290,218 240,226 160,226 C80,226 40,218 40,210 Z"
+        android:fillColor="#35000000" />
+
+    <!-- Rear Wheel -->
+    <path
+        android:pathData="M105,205m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0"
+        android:fillColor="#1F2937" />
+    <path
+        android:pathData="M105,205m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0"
+        android:fillColor="#9CA3AF" />
+    <path
+        android:pathData="M105,205m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+        android:fillColor="#374151" />
+
+    <!-- Front Wheel -->
+    <path
+        android:pathData="M235,205m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0"
+        android:fillColor="#1F2937" />
+    <path
+        android:pathData="M235,205m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0"
+        android:fillColor="#9CA3AF" />
+    <path
+        android:pathData="M235,205m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-5 0"
+        android:fillColor="#374151" />
+
+    <!-- Front Mudguard Fender -->
+    <path
+        android:pathData="M218,190 C220,175 250,175 254,190 L250,198 C246,188 226,188 222,198 Z"
+        android:fillColor="#111827" />
+    <!-- Front Fork Strut -->
+    <path
+        android:pathData="M233,165 L237,165 L237,200 L233,200 Z"
+        android:fillColor="#4B5563" />
+
+    <!-- Main Yellow Canopy Roof -->
+    <path
+        android:pathData="M65,115 C60,75 110,50 170,50 C225,50 245,65 255,85 L252,98 C242,85 220,72 170,72 C115,72 78,92 78,118 Z"
+        android:fillColor="#D97706" />
+    <path
+        android:pathData="M68,110 C62,70 112,46 172,46 C227,46 248,62 258,82 L254,95 C244,82 222,68 172,68 C117,68 80,88 80,114 Z"
+        android:fillColor="#FBBF24" />
+
+    <!-- Canopy Rear & Main Top Surface -->
+    <path
+        android:pathData="M68,110 C62,70 112,46 172,46 C227,46 248,62 258,82 L248,115 C242,120 225,122 195,122 L75,122 C68,122 66,118 68,110 Z"
+        android:fillColor="#F59E0B" />
+
+    <!-- Canopy Roof highlight shine -->
+    <path
+        android:pathData="M100,58 C135,52 190,52 225,62 C210,56 160,54 115,62 Z"
+        android:fillColor="#FEF08A" />
+
+    <!-- Rear Window Cutout -->
+    <path
+        android:pathData="M76,95 L95,95 L93,115 L74,115 Z"
+        android:fillColor="#1F2937" />
+
+    <!-- Frame Pillars -->
+    <path
+        android:pathData="M72,120 L76,120 L80,165 L76,165 Z"
+        android:fillColor="#1F2937" />
+    <path
+        android:pathData="M155,120 L159,120 L159,165 L155,165 Z"
+        android:fillColor="#1F2937" />
+    <path
+        android:pathData="M242,112 L246,112 L248,160 L244,160 Z"
+        android:fillColor="#1F2937" />
+
+    <!-- Windshield Glass -->
+    <path
+        android:pathData="M190,118 L244,114 L246,155 L192,155 Z"
+        android:fillColor="#BAE6FD" />
+    <path
+        android:pathData="M198,122 L225,120 L215,150 L195,150 Z"
+        android:fillColor="#E0F2FE" />
+    <!-- Wiper -->
+    <path
+        android:pathData="M222,120 L216,148 L218,149 L224,121 Z"
+        android:fillColor="#111827" />
+
+    <!-- Rear Passenger Seat -->
+    <path
+        android:pathData="M88,140 L140,140 L142,168 L86,168 Z"
+        android:fillColor="#374151" />
+    <path
+        android:pathData="M92,130 L115,130 L115,145 L92,145 Z"
+        android:fillColor="#1F2937" />
+
+    <!-- Driver Seat & Steering Handlebar -->
+    <path
+        android:pathData="M165,150 L185,150 L185,170 L165,170 Z"
+        android:fillColor="#1F2937" />
+    <path
+        android:pathData="M205,150 L220,145 L220,149 L205,154 Z"
+        android:fillColor="#111827" />
+
+    <!-- Lower Cabin Body (CNG Vibrant Green) -->
+    <path
+        android:pathData="M65,165 L155,165 L160,195 L145,200 C140,188 125,180 105,180 C85,180 72,188 68,200 L62,175 C60,168 62,165 65,165 Z"
+        android:fillColor="#059669" />
+
+    <!-- Front Apron / Nose Body (Yellow & CNG Green) -->
+    <path
+        android:pathData="M160,165 L245,158 C252,158 256,165 254,172 L245,195 C242,198 238,200 230,200 L185,200 L160,165 Z"
+        android:fillColor="#10B981" />
+
+    <!-- Front Apron Yellow Nose Plate -->
+    <path
+        android:pathData="M210,158 L245,158 C250,158 253,163 252,168 L245,185 L215,185 Z"
+        android:fillColor="#FBBF24" />
+
+    <!-- CNG Decal Badge -->
+    <path
+        android:pathData="M175,178m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M175,178m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0"
+        android:fillColor="#047857" />
+    <path
+        android:pathData="M171,175 L179,175 L179,181 L171,181 Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Front Headlight (Chrome Bezel + Bright Yellow Glow) -->
+    <path
+        android:pathData="M251,162m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+        android:fillColor="#E5E7EB" />
+    <path
+        android:pathData="M251,162m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0"
+        android:fillColor="#FEF08A" />
+    <path
+        android:pathData="M252,160m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Front Amber Indicator -->
+    <path
+        android:pathData="M244,174m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0"
+        android:fillColor="#F59E0B" />
+
+    <!-- Side Mirror -->
+    <path
+        android:pathData="M245,138 L254,136 L254,146 L245,144 Z"
+        android:fillColor="#111827" />
+
+    <!-- Number Plate -->
+    <path
+        android:pathData="M236,192 L250,192 L250,198 L236,198 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M238,194 L248,194 L248,196 L238,196 Z"
+        android:fillColor="#1F2937" />
+
+</vector>

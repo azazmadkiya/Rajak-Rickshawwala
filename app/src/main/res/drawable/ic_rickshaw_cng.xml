@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ground shadow -->
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M54,82m-25,0a25,4 0,1 1,50 0a25,4 0,1 1,-50 0" />
+
+    <!-- Yellow Canopy Roof -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M35,37 C35,30 43,26 54,26 C65,26 73,30 73,37 L76,46 C76,48 74,49 71,49 L37,49 C34,49 32,48 32,46 Z" />
+
+    <!-- Canopy Visor Shadow line -->
+    <path
+        android:fillColor="#D97706"
+        android:pathData="M32,46 C40,48 68,48 76,46 L76,48 C68,50 40,50 32,48 Z" />
+
+    <!-- Windshield Pillars -->
+    <path
+        android:fillColor="#1F2937"
+        android:pathData="M35,47 L37,47 L36,60 L34,60 Z M71,47 L73,47 L74,60 L72,60 Z" />
+
+    <!-- Windshield Glass -->
+    <path
+        android:fillColor="#BAE6FD"
+        android:pathData="M37,48 L71,48 L69,59 L39,59 Z" />
+
+    <!-- Windshield Reflection -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.4"
+        android:pathData="M40,50 L52,50 L47,57 L38,57 Z" />
+
+    <!-- Wiper -->
+    <path
+        android:fillColor="#1F2937"
+        android:pathData="M54,49 L50,56 L51,56.5 L55,49.5 Z" />
+
+    <!-- Side Mirrors -->
+    <path
+        android:fillColor="#1F2937"
+        android:pathData="M29,48 C28,48 27,49 27,51 C27,53 28,54 29,54 C30,54 31,53 31,51 C31,49 30,48 29,48 Z M79,48 C78,48 77,49 77,51 C77,53 78,54 79,54 C80,54 81,53 81,51 C81,49 80,48 79,48 Z" />
+    <path
+        android:fillColor="#374151"
+        android:pathData="M31,51 L35,52 L35,53 L31,52 Z M77,51 L73,52 L73,53 L77,52 Z" />
+
+    <!-- Green Lower Cabin Body (CNG Green) -->
+    <path
+        android:fillColor="#059669"
+        android:pathData="M33,59 L75,59 C77,59 78,61 78,64 L74,75 C73,77 71,78 69,78 L39,78 C37,78 35,77 34,75 L30,64 C30,61 31,59 33,59 Z" />
+
+    <!-- Yellow Center Nose Hood -->
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M42,59 L66,59 L64,72 C63,74 61,75 59,75 L49,75 C47,75 45,74 44,72 Z" />
+
+    <!-- CNG Badge (White oval with CNG green accent) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,61 C48,60 50,59.5 54,59.5 C58,59.5 60,60 60,61 L60,63.5 C60,64.5 58,65 54,65 C50,65 48,64.5 48,63.5 Z" />
+    <path
+        android:fillColor="#047857"
+        android:pathData="M51,61.5 L57,61.5 L57,63 L51,63 Z" />
+
+    <!-- Main Center Headlight (Chrome ring + Warm bright yellow light) -->
+    <path
+        android:fillColor="#E5E7EB"
+        android:pathData="M54,68.5m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+    <path
+        android:fillColor="#FEF08A"
+        android:pathData="M54,68.5m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.75"
+        android:pathData="M52.5,67m-1.2,0a1.2,1.2 0,1 1,2.4 0a1.2,1.2 0,1 1,-2.4 0" />
+
+    <!-- Side Indicators (Amber) -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M37,66m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0 M71,66m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+
+    <!-- Number Plate / Bumper Strip -->
+    <path
+        android:fillColor="#F3F4F6"
+        android:pathData="M47,75 L61,75 L61,78 L47,78 Z" />
+    <path
+        android:fillColor="#111827"
+        android:pathData="M49,76 L59,76 L59,77 L49,77 Z" />
+
+    <!-- Front Mudguard & Wheel -->
+    <path
+        android:fillColor="#1F2937"
+        android:pathData="M49,78 L59,78 L60,82 C60,83 58,83.5 54,83.5 C50,83.5 48,83 48,82 Z" />
+    <path
+        android:fillColor="#111827"
+        android:pathData="M54,82.5m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
+    <path
+        android:fillColor="#9CA3AF"
+        android:pathData="M54,82.5m-1.2,0a1.2,1.2 0,1 1,2.4 0a1.2,1.2 0,1 1,-2.4 0" />
+
+</vector>

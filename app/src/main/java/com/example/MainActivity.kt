@@ -28,11 +28,14 @@ class MainActivity : ComponentActivity() {
     setContent {
       val viewModel: RickshawViewModel = viewModel()
       val isDark by viewModel.isDarkMode.collectAsState()
-      val currentUser by viewModel.currentUser.collectAsState()
+      val isLoggedIn by viewModel.isLoggedIn.collectAsState()
       val navController = rememberNavController()
+      var showSplash by remember { mutableStateOf(true) }
 
       RajakRickshawwalaTheme(darkTheme = isDark) {
-        if (currentUser == null) {
+        if (showSplash) {
+          SplashScreen(onSplashFinished = { showSplash = false })
+        } else if (!isLoggedIn) {
           Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background

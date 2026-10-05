@@ -71,7 +71,8 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.auth)
   implementation("com.google.firebase:firebase-firestore")
-  implementation("com.google.firebase:firebase-messaging")
+  // Unused FCM dependency removed to prevent FCM registration error
+  // implementation("com.google.firebase:firebase-messaging")
   implementation("com.google.android.gms:play-services-location:21.3.0")
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.material.icons.core)

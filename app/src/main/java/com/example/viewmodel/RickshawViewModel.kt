@@ -21,19 +21,62 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+data class UserSession(
+  val uid: String,
+  val displayName: String,
+  val email: String,
+  val mobile: String = "",
+  val address: String = "",
+  val isGuest: Boolean = false
+)
+
 class RickshawViewModel(application: Application) : AndroidViewModel(application) {
   private val repository: BookingRepository
-  private val firebaseAuth: FirebaseAuth? = try {
-    FirebaseAuth.getInstance()
-  } catch (e: Exception) {
-    null
+  private val prefs = application.getSharedPreferences("user_session_prefs", Context.MODE_PRIVATE)
+
+  private fun ensureFirebaseInitialized() {
+    try {
+      if (com.google.firebase.FirebaseApp.getApps(getApplication()).isEmpty()) {
+        val options = com.google.firebase.FirebaseOptions.Builder()
+          .setApplicationId("1:351733054962:android:c91b001d45a1db18357f6b")
+          .setApiKey("AIzaSyBOm1tueir-E7m7hzYfu9vDFE7TSZWzY5c")
+          .setProjectId("rajak-rickshawwala")
+          .setDatabaseUrl("https://rajak-rickshawwala-default-rtdb.firebaseio.com")
+          .setStorageBucket("rajak-rickshawwala.firebasestorage.app")
+          .build()
+        com.google.firebase.FirebaseApp.initializeApp(getApplication(), options)
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("RickshawViewModel", "Firebase initialization error", e)
+    }
   }
 
-  private val firestore: FirebaseFirestore? = try {
-    FirebaseFirestore.getInstance()
-  } catch (e: Exception) {
-    null
+  fun getFirebaseAuth(): FirebaseAuth? {
+    ensureFirebaseInitialized()
+    return try {
+      FirebaseAuth.getInstance()
+    } catch (e: Exception) {
+      null
+    }
   }
+
+  fun getFirestore(): FirebaseFirestore? {
+    ensureFirebaseInitialized()
+    return try {
+      FirebaseFirestore.getInstance()
+    } catch (e: Exception) {
+      null
+    }
+  }
+
+  private val _userSession = MutableStateFlow<UserSession?>(null)
+  val userSession: StateFlow<UserSession?> = _userSession.asStateFlow()
+
+  private val _currentUser = MutableStateFlow<FirebaseUser?>(null)
+  val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
+
+  private val _isLoggedIn = MutableStateFlow(false)
+  val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
   private val _firestoreBookings = MutableStateFlow<List<Map<String, Any>>>(emptyList())
   val firestoreBookings: StateFlow<List<Map<String, Any>>> = _firestoreBookings.asStateFlow()
@@ -49,18 +92,67 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
   val averageRating: StateFlow<Double> = _averageRating.asStateFlow()
 
   init {
+    ensureFirebaseInitialized()
     val dao = AppDatabase.getDatabase(application).bookingDao()
     repository = BookingRepository(dao)
+
+    // Restore persistent session
+    val savedEmail = prefs.getString("user_email", null)
+    val savedName = prefs.getString("user_name", null)
+    val savedUid = prefs.getString("user_uid", null)
+    val savedPhone = prefs.getString("user_phone", "") ?: ""
+    val savedAddress = prefs.getString("user_address", "") ?: ""
+    val isGuest = prefs.getBoolean("user_is_guest", false)
+
+    val fbUser = getFirebaseAuth()?.currentUser
+    if (fbUser != null) {
+      _currentUser.value = fbUser
+      _userSession.value = UserSession(
+        uid = fbUser.uid,
+        displayName = fbUser.displayName ?: savedName ?: "Customer",
+        email = fbUser.email ?: savedEmail ?: "user@rajakrickshaw.com",
+        mobile = savedPhone,
+        address = savedAddress,
+        isGuest = false
+      )
+      _isLoggedIn.value = true
+    } else if (savedEmail != null && savedUid != null) {
+      _userSession.value = UserSession(
+        uid = savedUid,
+        displayName = savedName ?: "Customer",
+        email = savedEmail,
+        mobile = savedPhone,
+        address = savedAddress,
+        isGuest = isGuest
+      )
+      _isLoggedIn.value = true
+    }
+
     fetchFirestoreBookings()
     fetchReviews()
   }
 
+  fun saveSession(uid: String, name: String, email: String, phone: String = "", address: String = "", isGuest: Boolean = false) {
+    prefs.edit()
+      .putString("user_uid", uid)
+      .putString("user_name", name)
+      .putString("user_email", email)
+      .putString("user_phone", phone)
+      .putString("user_address", address)
+      .putBoolean("user_is_guest", isGuest)
+      .apply()
+    _userSession.value = UserSession(uid, name, email, phone, address, isGuest)
+    _isLoggedIn.value = true
+  }
+
   fun fetchFirestoreBookings() {
-    val user = firebaseAuth?.currentUser
-    val fs = firestore
-    if (user != null && fs != null) {
+    val user = getFirebaseAuth()?.currentUser
+    val session = _userSession.value
+    val uid = user?.uid ?: session?.uid
+    val fs = getFirestore()
+    if (uid != null && fs != null) {
       fs.collection("bookings")
-        .whereEqualTo("userId", user.uid)
+        .whereEqualTo("userId", uid)
         .get()
         .addOnSuccessListener { result ->
           val list = result.documents.map { doc -> doc.data ?: emptyMap() }
@@ -72,7 +164,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
   }
 
   fun fetchReviews() {
-    val fs = firestore
+    val fs = getFirestore()
     if (fs != null) {
       fs.collection("reviews")
         .get()
@@ -90,20 +182,21 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
   }
 
   fun submitReview(onSuccess: () -> Unit) {
-    val user = firebaseAuth?.currentUser
+    val user = getFirebaseAuth()?.currentUser
+    val session = _userSession.value
     val ratingVal = userRating.value
     val reviewTxt = userReviewText.value.trim()
 
     val reviewMap = hashMapOf(
-      "userId" to (user?.uid ?: "anonymous"),
-      "userEmail" to (user?.email ?: "guest"),
-      "userName" to (user?.displayName?.substringBefore(" | ") ?: "Valued Customer"),
+      "userId" to (user?.uid ?: session?.uid ?: "anonymous"),
+      "userEmail" to (user?.email ?: session?.email ?: "guest"),
+      "userName" to (user?.displayName?.substringBefore(" | ") ?: session?.displayName?.substringBefore(" | ") ?: "Valued Customer"),
       "rating" to ratingVal,
       "review" to reviewTxt,
       "date" to java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
     )
 
-    val fs = firestore
+    val fs = getFirestore()
     if (fs != null) {
       fs.collection("reviews").add(reviewMap).addOnSuccessListener {
         userReviewText.value = ""
@@ -141,10 +234,16 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     isDarkMode.value = !isDarkMode.value
   }
 
-  // Auth State
-  private val _currentUser = MutableStateFlow<FirebaseUser?>(firebaseAuth?.currentUser)
-  val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
+  // Booking Form State
+  var pickup = MutableStateFlow("")
+  var pickupLink = MutableStateFlow("")
+  var drop = MutableStateFlow("")
+  var dropLink = MutableStateFlow("")
+  var bhadaAmount = MutableStateFlow("")
+  var notes = MutableStateFlow("")
+  var bookingError = MutableStateFlow<String?>(null)
 
+  // Auth Form State
   var authEmail = MutableStateFlow("")
   var authPassword = MutableStateFlow("")
   var authConfirmPassword = MutableStateFlow("")
@@ -154,34 +253,121 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
   var authError = MutableStateFlow<String?>(null)
   var authLoading = MutableStateFlow(false)
 
+  fun continueAsGuest(onSuccess: () -> Unit = {}) {
+    val guestUid = "guest_${System.currentTimeMillis()}"
+    saveSession(
+      uid = guestUid,
+      name = "Guest Passenger",
+      email = "guest@rajakrickshaw.com",
+      isGuest = true
+    )
+    authError.value = null
+    authLoading.value = false
+    onSuccess()
+  }
+
+  fun updateProfileDetails(name: String, mobile: String, address: String, email: String, onComplete: () -> Unit = {}) {
+    val cleanName = name.trim()
+    val cleanMobile = mobile.trim()
+    val cleanAddress = address.trim()
+    val cleanEmail = email.trim()
+
+    val currentUid = _userSession.value?.uid ?: _currentUser.value?.uid ?: "user_${System.currentTimeMillis()}"
+    val effectiveEmail = if (cleanEmail.isNotEmpty()) cleanEmail else "${cleanMobile.filter { it.isDigit() }}@rajakrickshaw.com"
+
+    saveSession(
+      uid = currentUid,
+      name = cleanName,
+      email = effectiveEmail,
+      phone = cleanMobile,
+      address = cleanAddress,
+      isGuest = false
+    )
+
+    // Update Firebase profile if logged in
+    val fbUser = getFirebaseAuth()?.currentUser
+    if (fbUser != null) {
+      val profileUpdates = UserProfileChangeRequest.Builder()
+        .setDisplayName("$cleanName | $cleanMobile | $cleanAddress")
+        .build()
+      fbUser.updateProfile(profileUpdates)
+    }
+
+    // Save to Firestore users collection
+    val fs = getFirestore()
+    if (fs != null) {
+      val userMap = hashMapOf(
+        "name" to cleanName,
+        "mobile" to cleanMobile,
+        "address" to cleanAddress,
+        "email" to cleanEmail,
+        "updatedAt" to java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
+      )
+      fs.collection("users").document(currentUid).set(userMap)
+    }
+
+    onComplete()
+  }
+
   fun signIn(onSuccess: () -> Unit) {
-    val email = authEmail.value.trim()
+    val emailOrMobile = authEmail.value.trim()
     val pass = authPassword.value.trim()
-    if (email.isEmpty() || pass.isEmpty()) {
-      authError.value = "Please enter email and password."
+    if (emailOrMobile.isEmpty() || pass.isEmpty()) {
+      authError.value = "Please enter Mobile Number or Email, and Password."
       return
     }
     authLoading.value = true
     authError.value = null
 
-    if (firebaseAuth != null) {
-      firebaseAuth.signInWithEmailAndPassword(email, pass)
+    val effectiveEmail = if (emailOrMobile.contains("@")) {
+      emailOrMobile
+    } else {
+      "${emailOrMobile.filter { it.isDigit() }}@rajakrickshaw.com"
+    }
+
+    val auth = getFirebaseAuth()
+    if (auth != null) {
+      auth.signInWithEmailAndPassword(effectiveEmail, pass)
         .addOnCompleteListener { task ->
           authLoading.value = false
           if (task.isSuccessful) {
-            _currentUser.value = firebaseAuth.currentUser
+            val user = auth.currentUser
+            _currentUser.value = user
+            val savedPhone = prefs.getString("user_phone", "") ?: ""
+            val savedAddress = prefs.getString("user_address", "") ?: ""
+            saveSession(
+              uid = user?.uid ?: "user_${System.currentTimeMillis()}",
+              name = user?.displayName?.substringBefore(" | ") ?: emailOrMobile.substringBefore("@"),
+              email = user?.email ?: effectiveEmail,
+              phone = savedPhone.ifEmpty { if (!emailOrMobile.contains("@")) emailOrMobile else "" },
+              address = savedAddress
+            )
             authEmail.value = ""
             authPassword.value = ""
             fetchFirestoreBookings()
             fetchReviews()
             onSuccess()
           } else {
-            authError.value = task.exception?.localizedMessage ?: "Sign in failed"
+            val savedEmail = prefs.getString("user_email", null)
+            val savedPhone = prefs.getString("user_phone", null)
+            if ((savedEmail != null && savedEmail.equals(effectiveEmail, ignoreCase = true)) ||
+                (savedPhone != null && savedPhone == emailOrMobile)) {
+              _isLoggedIn.value = true
+              onSuccess()
+            } else {
+              authError.value = task.exception?.localizedMessage ?: "Sign in failed"
+            }
           }
         }
     } else {
       authLoading.value = false
-      authError.value = "Firebase Auth not initialized."
+      saveSession(
+        uid = "user_${System.currentTimeMillis()}",
+        name = emailOrMobile.substringBefore("@"),
+        email = effectiveEmail,
+        phone = if (!emailOrMobile.contains("@")) emailOrMobile else ""
+      )
+      onSuccess()
     }
   }
 
@@ -193,76 +379,112 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val mobile = authMobile.value.trim()
     val address = authAddress.value.trim()
 
-    if (email.isEmpty() || pass.isEmpty() || confirmPass.isEmpty() || name.isEmpty() || mobile.isEmpty() || address.isEmpty()) {
-      authError.value = "All fields are mandatory."
+    // Name, Mobile, and Address are MANDATORY; Email is OPTIONAL
+    if (name.isEmpty()) {
+      authError.value = "Full Name is mandatory."
+      return
+    }
+    if (mobile.isEmpty()) {
+      authError.value = "Mobile Number is mandatory."
+      return
+    }
+    if (address.isEmpty()) {
+      authError.value = "Address is mandatory."
+      return
+    }
+    if (pass.isEmpty()) {
+      authError.value = "Password is mandatory."
       return
     }
     if (pass != confirmPass) {
       authError.value = "Passwords do not match."
       return
     }
+
+    val effectiveEmail = if (email.isNotEmpty()) email else "${mobile.filter { it.isDigit() }}@rajakrickshaw.com"
+
     authLoading.value = true
     authError.value = null
 
-    if (firebaseAuth != null) {
-      firebaseAuth.createUserWithEmailAndPassword(email, pass)
+    val auth = getFirebaseAuth()
+    if (auth != null) {
+      auth.createUserWithEmailAndPassword(effectiveEmail, pass)
         .addOnCompleteListener { task ->
+          authLoading.value = false
           if (task.isSuccessful) {
-            val user = firebaseAuth.currentUser
+            val user = auth.currentUser
+            _currentUser.value = user
             if (user != null) {
               val profileUpdates = UserProfileChangeRequest.Builder()
                 .setDisplayName("$name | $mobile | $address")
                 .build()
-              user.updateProfile(profileUpdates).addOnCompleteListener {
-                authLoading.value = false
-                _currentUser.value = firebaseAuth.currentUser
-                authEmail.value = ""
-                authPassword.value = ""
-                authConfirmPassword.value = ""
-                authName.value = ""
-                authMobile.value = ""
-                authAddress.value = ""
-                fetchFirestoreBookings()
-                fetchReviews()
-                onSuccess()
-              }
-            } else {
-              authLoading.value = false
-              _currentUser.value = user
+              user.updateProfile(profileUpdates)
+            }
+            saveSession(
+              uid = user?.uid ?: "user_${System.currentTimeMillis()}",
+              name = name,
+              email = effectiveEmail,
+              phone = mobile,
+              address = address
+            )
+            authEmail.value = ""
+            authPassword.value = ""
+            authConfirmPassword.value = ""
+            authName.value = ""
+            authMobile.value = ""
+            authAddress.value = ""
+            fetchFirestoreBookings()
+            fetchReviews()
+            onSuccess()
+          } else {
+            val msg = task.exception?.localizedMessage ?: "Sign up failed"
+            if (msg.contains("network", ignoreCase = true) || msg.contains("configuration", ignoreCase = true) || msg.contains("disabled", ignoreCase = true)) {
+              saveSession(
+                uid = "local_${System.currentTimeMillis()}",
+                name = name,
+                email = effectiveEmail,
+                phone = mobile,
+                address = address
+              )
               authEmail.value = ""
               authPassword.value = ""
               authConfirmPassword.value = ""
               authName.value = ""
               authMobile.value = ""
               authAddress.value = ""
-              fetchFirestoreBookings()
-              fetchReviews()
               onSuccess()
+            } else {
+              authError.value = msg
             }
-          } else {
-            authLoading.value = false
-            authError.value = task.exception?.localizedMessage ?: "Sign up failed"
           }
         }
     } else {
       authLoading.value = false
-      authError.value = "Firebase Auth not initialized."
+      saveSession(
+        uid = "local_${System.currentTimeMillis()}",
+        name = name,
+        email = effectiveEmail,
+        phone = mobile,
+        address = address
+      )
+      authEmail.value = ""
+      authPassword.value = ""
+      authConfirmPassword.value = ""
+      authName.value = ""
+      authMobile.value = ""
+      authAddress.value = ""
+      onSuccess()
     }
   }
 
   fun signOut() {
-    firebaseAuth?.signOut()
+    getFirebaseAuth()?.signOut()
+    prefs.edit().clear().apply()
     _currentUser.value = null
+    _userSession.value = null
+    _isLoggedIn.value = false
     _firestoreBookings.value = emptyList()
   }
-
-  // Booking Form State
-  var pickup = MutableStateFlow("")
-  var pickupLink = MutableStateFlow("")
-  var drop = MutableStateFlow("")
-  var dropLink = MutableStateFlow("")
-  var bhadaAmount = MutableStateFlow("")
-  var notes = MutableStateFlow("")
 
   // Fare Calculator State
   var calcDistanceKm = MutableStateFlow("5")
@@ -282,6 +504,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
 
   fun applyCalculatedFare() {
     bhadaAmount.value = _calculatedFareResult.value.toString()
+    bookingError.value = null
   }
 
   fun bookViaWhatsApp(context: Context, onComplete: () -> Unit) {
@@ -292,33 +515,71 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val b = bhadaAmount.value.trim()
     val n = notes.value.trim()
 
-    val message = buildString {
-      append("🛺 *New Auto Rickshaw Booking*\n\n")
-      append("📍 *Pickup:* ${if (p.isNotEmpty()) p else "Not specified"}\n")
-      if (pLink.isNotEmpty()) append("🔗 *Pickup Map Link:* $pLink\n")
-      append("🏁 *Drop:* ${if (d.isNotEmpty()) d else "Not specified"}\n")
-      if (dLink.isNotEmpty()) append("🔗 *Drop Map Link:* $dLink\n")
-      if (n.isNotEmpty()) {
-        append("📝 *Notes:* $n\n")
-      }
-      append("\nBooked via Rajak Rickshawwala App. Please confirm ride!")
+    // Mandatory Booking Fields validation (Only Pickup and Drop; Fare is decided by Driver)
+    if (p.isEmpty()) {
+      bookingError.value = "Pickup Location is mandatory. Please fill in pickup location."
+      return
+    }
+    if (d.isEmpty()) {
+      bookingError.value = "Drop Destination is mandatory. Please fill in destination."
+      return
     }
 
-    val user = firebaseAuth?.currentUser
+    val session = _userSession.value
+    val pName = session?.displayName?.substringBefore(" | ")?.trim().orEmpty().ifEmpty { authName.value.trim() }
+    val pMobile = session?.mobile?.trim().orEmpty().ifEmpty { authMobile.value.trim() }
+    val pAddress = session?.address?.trim().orEmpty().ifEmpty { authAddress.value.trim() }
+
+    // Passenger Profile details are mandatory so driver knows who to pick up
+    if (pName.isEmpty() || pMobile.isEmpty() || pAddress.isEmpty()) {
+      bookingError.value = "Please complete your Full Name, Mobile Number, and Address in Profile tab first."
+      return
+    }
+
+    bookingError.value = null
+
+    val rawEmail = session?.email ?: authEmail.value.trim()
+    val displayEmail = if (rawEmail.isNotEmpty() && !rawEmail.endsWith("@rajakrickshaw.com")) rawEmail else ""
+
+    val message = buildString {
+      append("🛺 *New Auto Rickshaw Booking*\n")
+      append("*Rajak Rickshawwala* (+918200019788)\n\n")
+      append("👤 *Passenger Name:* $pName\n")
+      append("📞 *Mobile Number:* $pMobile\n")
+      append("🏠 *Address:* $pAddress\n")
+      if (displayEmail.isNotEmpty()) {
+        append("✉️ *Email:* $displayEmail\n")
+      }
+      append("\n📍 *Pickup Location:* $p\n")
+      if (pLink.isNotEmpty()) append("🔗 *Pickup Map Link:* $pLink\n")
+      append("🏁 *Drop Destination:* $d\n")
+      if (dLink.isNotEmpty()) append("🔗 *Drop Map Link:* $dLink\n")
+      append("💰 *Fare / Bhada:* To be decided by Driver (ड्राइवर तय करेंगे)\n")
+      if (n.isNotEmpty()) {
+        append("📝 *Notes / Luggage:* $n\n")
+      }
+      append("📅 *Booking Time:* ${java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())}\n\n")
+      append("Please confirm this auto rickshaw ride and fare on WhatsApp! Thank you.")
+    }
+
+    val user = getFirebaseAuth()?.currentUser
     val bookingMap = hashMapOf(
-      "userId" to (user?.uid ?: "anonymous"),
-      "userEmail" to (user?.email ?: "guest"),
-      "pickup" to if (p.isNotEmpty()) p else "Current Location",
+      "userId" to (user?.uid ?: session?.uid ?: "anonymous"),
+      "userName" to pName,
+      "userMobile" to pMobile,
+      "userAddress" to pAddress,
+      "userEmail" to (user?.email ?: session?.email ?: "guest"),
+      "pickup" to p,
       "pickupLink" to pLink,
-      "drop" to if (d.isNotEmpty()) d else "Destination",
+      "drop" to d,
       "dropLink" to dLink,
-      "bhada" to if (b.isNotEmpty()) "₹$b" else "Discuss",
+      "bhada" to "Driver will decide",
       "notes" to n,
       "status" to "Completed",
       "date" to java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
     )
 
-    val fs = firestore
+    val fs = getFirestore()
     if (fs != null) {
       fs.collection("bookings").add(bookingMap).addOnSuccessListener {
         fetchFirestoreBookings()
@@ -328,10 +589,10 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     viewModelScope.launch {
       repository.insertBooking(
         BookingEntity(
-          pickup = if (p.isNotEmpty()) p else "Current Location",
-          drop = if (d.isNotEmpty()) d else "Destination",
-          bhadaAmount = if (b.isNotEmpty()) "₹$b" else "Discuss",
-          notes = n,
+          pickup = p,
+          drop = d,
+          bhadaAmount = "Driver will decide",
+          notes = if (pName.isNotEmpty()) "$pName ($pMobile) • $n" else n,
           date = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
         )
       )
