@@ -174,6 +174,7 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
           verticalAlignment = Alignment.CenterVertically
         ) {
           Row(
+            modifier = Modifier.weight(1f),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
           ) {
@@ -212,6 +213,20 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
                 )
               }
             }
+          }
+
+          IconButton(
+            onClick = { viewModel.shareApp(context) },
+            modifier = Modifier
+              .size(42.dp)
+              .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), CircleShape)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Share,
+              contentDescription = "Share App",
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(20.dp)
+            )
           }
         }
 

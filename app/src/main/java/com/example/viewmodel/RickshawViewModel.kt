@@ -629,15 +629,29 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
 
   fun shareApp(context: Context) {
     try {
+      val appId = context.packageName.ifEmpty { "com.rajak.rickshawwala.azaz" }
+      val playStoreLink = "https://play.google.com/store/apps/details?id=$appId"
+      val shareText = buildString {
+        append("🛺 *નમસ્તે! રજાક રીક્ષાવાળા (Rajak Rickshawwala)*\n\n")
+        append("શું તમારે ઝડપી, સુરક્ષિત અને વિશ્વાસપાત્ર ઓટો રીક્ષા સવારી જોઈએ છે?\n\n")
+        append("હવે ઘરે બેઠા સરળતાથી રીક્ષા બુક કરો:\n")
+        append("✅ સરળ અને ઝડપી ઓટો રીક્ષા બુકિંગ (WhatsApp & Call)\n")
+        append("✅ સમયસર પીકઅપ અને સુરક્ષિત મુસાફરી\n")
+        append("✅ વાજબી ભાડું અને મૈત્રીપૂર્ણ ડ્રાઇવર સેવા\n")
+        append("✅ લાઈવ GPS લોકેશન સાથે બુકિંગ સુવિધા\n")
+        append("📞 ડ્રાઇવર: રજાક પરમાર (+91 82000 19788)\n\n")
+        append("📲 *આજે જ અમારી ઑફિશિયલ ઍપ Google Play Store પરથી ડાઉનલોડ કરો:*\n")
+        append(playStoreLink)
+        append("\n\nતમારા પરિવાર અને મિત્રો સાથે પણ આ ઍપ જરૂર શેર કરો! 🙏")
+      }
+
       val shareIntent = Intent().apply {
         action = Intent.ACTION_SEND
         type = "text/plain"
-        putExtra(
-          Intent.EXTRA_TEXT,
-          "Book Rajak Rickshawwala (Rajak Parmar - +918200019788) for fast, safe & reliable auto rickshaw transport! Download the app now."
-        )
+        putExtra(Intent.EXTRA_SUBJECT, "રજાક રીક્ષાવાળા (Rajak Rickshawwala)")
+        putExtra(Intent.EXTRA_TEXT, shareText)
       }
-      context.startActivity(Intent.createChooser(shareIntent, "Share App via"))
+      context.startActivity(Intent.createChooser(shareIntent, "ઍપ શેર કરો (Share App via)"))
     } catch (e: Exception) {
       // Ignore
     }

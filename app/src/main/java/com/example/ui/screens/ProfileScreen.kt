@@ -828,7 +828,7 @@ fun ProfileScreen(viewModel: RickshawViewModel) {
     ) {
       Column(
         modifier = Modifier.padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
       ) {
         Icon(
@@ -838,10 +838,16 @@ fun ProfileScreen(viewModel: RickshawViewModel) {
           modifier = Modifier.size(32.dp)
         )
         Text(
-          text = "Share Rajak Rickshawwala",
+          text = "રજાક રીક્ષાવાળા ઍપ શેર કરો",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        Text(
+          text = "તમારા મિત્રો અને પરિવારજનો સાથે ઍપ શેર કરો જેથી તેઓ પણ સરળતાથી રીક્ષા બુક કરી શકે.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+          textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Button(
           onClick = { viewModel.shareApp(context) },
@@ -850,7 +856,7 @@ fun ProfileScreen(viewModel: RickshawViewModel) {
         ) {
           Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onPrimary)
           Spacer(modifier = Modifier.width(8.dp))
-          Text("Share App Now", fontWeight = FontWeight.Bold)
+          Text("ઍપ શેર કરો (Share App)", fontWeight = FontWeight.Bold)
         }
       }
     }
