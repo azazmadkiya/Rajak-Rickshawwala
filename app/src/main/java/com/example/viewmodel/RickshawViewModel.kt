@@ -9,10 +9,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.AppDatabase
 import com.example.data.BookingEntity
 import com.example.data.BookingRepository
+import com.example.service.NotificationHelper
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import java.net.URLEncoder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,9 +32,40 @@ data class UserSession(
   val isGuest: Boolean = false
 )
 
+data class RegisteredUser(
+  val uid: String = "",
+  val name: String = "",
+  val mobile: String = "",
+  val address: String = "",
+  val email: String = "",
+  val role: String = "customer",
+  val registeredAt: String = "",
+  val lastActive: String = "",
+  val deviceModel: String = "",
+  val androidVersion: String = ""
+)
+
+data class AppNotification(
+  val id: String = "",
+  val title: String = "",
+  val message: String = "",
+  val targetUserId: String = "ALL", // "ALL" or specific user UID
+  val targetUserName: String = "All Users",
+  val sentBy: String = "azazmadkiya@gmail.com",
+  val date: String = "",
+  val timestamp: Long = System.currentTimeMillis(),
+  val isRead: Boolean = false
+)
+
 class RickshawViewModel(application: Application) : AndroidViewModel(application) {
+  companion object {
+    val ADMIN_EMAILS = setOf("azazmadkiya@gmail.com", "admin@rajakrickshaw.com")
+  }
+
   private val repository: BookingRepository
   private val prefs = application.getSharedPreferences("user_session_prefs", Context.MODE_PRIVATE)
+  private var notificationListener: ListenerRegistration? = null
+  private var usersListener: ListenerRegistration? = null
 
   private fun ensureFirebaseInitialized() {
     try {
@@ -78,8 +111,27 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
   private val _isLoggedIn = MutableStateFlow(false)
   val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
+  private val _isAdmin = MutableStateFlow(false)
+  val isAdmin: StateFlow<Boolean> = _isAdmin.asStateFlow()
+
   private val _firestoreBookings = MutableStateFlow<List<Map<String, Any>>>(emptyList())
   val firestoreBookings: StateFlow<List<Map<String, Any>>> = _firestoreBookings.asStateFlow()
+
+  // Admin Data State
+  private val _allUsers = MutableStateFlow<List<RegisteredUser>>(emptyList())
+  val allUsers: StateFlow<List<RegisteredUser>> = _allUsers.asStateFlow()
+
+  private val _allBookingsAdmin = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+  val allBookingsAdmin: StateFlow<List<Map<String, Any>>> = _allBookingsAdmin.asStateFlow()
+
+  private val _sentNotifications = MutableStateFlow<List<AppNotification>>(emptyList())
+  val sentNotifications: StateFlow<List<AppNotification>> = _sentNotifications.asStateFlow()
+
+  private val _userNotifications = MutableStateFlow<List<AppNotification>>(emptyList())
+  val userNotifications: StateFlow<List<AppNotification>> = _userNotifications.asStateFlow()
+
+  private val _unreadNotificationCount = MutableStateFlow(0)
+  val unreadNotificationCount: StateFlow<Int> = _unreadNotificationCount.asStateFlow()
 
   // Ratings & Reviews State
   var userRating = MutableStateFlow(5)
@@ -90,6 +142,14 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
 
   private val _averageRating = MutableStateFlow(4.9)
   val averageRating: StateFlow<Double> = _averageRating.asStateFlow()
+
+  // Admin Notification Compose Form State
+  var adminNotifTitle = MutableStateFlow("")
+  var adminNotifMessage = MutableStateFlow("")
+  var adminNotifTargetType = MutableStateFlow("ALL") // "ALL" or "SINGLE"
+  var adminNotifSelectedUser = MutableStateFlow<RegisteredUser?>(null)
+  var adminNotifSending = MutableStateFlow(false)
+  var adminNotifStatusMessage = MutableStateFlow<String?>(null)
 
   init {
     ensureFirebaseInitialized()
@@ -103,19 +163,22 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val savedPhone = prefs.getString("user_phone", "") ?: ""
     val savedAddress = prefs.getString("user_address", "") ?: ""
     val isGuest = prefs.getBoolean("user_is_guest", false)
+    val isAdminMode = prefs.getBoolean("user_is_admin", false)
 
     val fbUser = getFirebaseAuth()?.currentUser
     if (fbUser != null) {
       _currentUser.value = fbUser
+      val email = fbUser.email ?: savedEmail ?: "user@rajakrickshaw.com"
       _userSession.value = UserSession(
         uid = fbUser.uid,
         displayName = fbUser.displayName ?: savedName ?: "Customer",
-        email = fbUser.email ?: savedEmail ?: "user@rajakrickshaw.com",
+        email = email,
         mobile = savedPhone,
         address = savedAddress,
         isGuest = false
       )
       _isLoggedIn.value = true
+      _isAdmin.value = checkIsAdmin(email) || isAdminMode
     } else if (savedEmail != null && savedUid != null) {
       _userSession.value = UserSession(
         uid = savedUid,
@@ -126,13 +189,31 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
         isGuest = isGuest
       )
       _isLoggedIn.value = true
+      _isAdmin.value = checkIsAdmin(savedEmail) || isAdminMode
     }
 
     fetchFirestoreBookings()
     fetchReviews()
+    fetchAdminData()
+    startNotificationListener()
+    startUsersListener()
+  }
+
+  private fun checkIsAdmin(email: String?): Boolean {
+    if (email.isNullOrBlank()) return false
+    return ADMIN_EMAILS.any { it.equals(email.trim(), ignoreCase = true) }
+  }
+
+  fun toggleAdminMode(enable: Boolean) {
+    prefs.edit().putBoolean("user_is_admin", enable).apply()
+    _isAdmin.value = enable
+    if (enable) {
+      fetchAdminData()
+    }
   }
 
   fun saveSession(uid: String, name: String, email: String, phone: String = "", address: String = "", isGuest: Boolean = false) {
+    val isAdmin = checkIsAdmin(email)
     prefs.edit()
       .putString("user_uid", uid)
       .putString("user_name", name)
@@ -140,9 +221,344 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
       .putString("user_phone", phone)
       .putString("user_address", address)
       .putBoolean("user_is_guest", isGuest)
+      .putBoolean("user_is_admin", isAdmin)
       .apply()
     _userSession.value = UserSession(uid, name, email, phone, address, isGuest)
     _isLoggedIn.value = true
+    _isAdmin.value = isAdmin
+
+    // Persist to Firestore users collection
+    saveUserToFirestore(uid, name, email, phone, address, isAdmin)
+    fetchAdminData()
+  }
+
+  private fun saveUserToFirestore(uid: String, name: String, email: String, phone: String, address: String, isAdmin: Boolean) {
+    val fs = getFirestore() ?: return
+    try {
+      val now = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
+      val device = "${android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }} ${android.os.Build.MODEL}"
+      val androidVer = "Android ${android.os.Build.VERSION.RELEASE}"
+      val userMap = hashMapOf(
+        "uid" to uid,
+        "name" to name.ifEmpty { "Customer" },
+        "mobile" to phone,
+        "address" to address,
+        "email" to email,
+        "role" to if (isAdmin) "admin" else "customer",
+        "registeredAt" to now,
+        "lastActive" to now,
+        "deviceModel" to device,
+        "androidVersion" to androidVer
+      )
+      fs.collection("users").document(uid).set(userMap, com.google.firebase.firestore.SetOptions.merge())
+    } catch (e: Exception) {
+      android.util.Log.e("RickshawViewModel", "Failed to save user to Firestore", e)
+    }
+  }
+
+  private fun startUsersListener() {
+    val fs = getFirestore() ?: return
+    try {
+      usersListener?.remove()
+      usersListener = fs.collection("users")
+        .addSnapshotListener { snapshot, error ->
+          if (error != null || snapshot == null) return@addSnapshotListener
+          val userList = snapshot.documents.map { doc ->
+            RegisteredUser(
+              uid = doc.getString("uid") ?: doc.id,
+              name = doc.getString("name") ?: "Passenger",
+              mobile = doc.getString("mobile") ?: "",
+              address = doc.getString("address") ?: "",
+              email = doc.getString("email") ?: "",
+              role = doc.getString("role") ?: "customer",
+              registeredAt = doc.getString("registeredAt") ?: "Recently",
+              lastActive = doc.getString("lastActive") ?: "Active",
+              deviceModel = doc.getString("deviceModel") ?: "",
+              androidVersion = doc.getString("androidVersion") ?: ""
+            )
+          }.sortedByDescending { it.role == "admin" }
+
+          if (userList.isNotEmpty()) {
+            _allUsers.value = userList
+          }
+        }
+    } catch (e: Exception) {
+      android.util.Log.e("RickshawViewModel", "Users listener error", e)
+    }
+  }
+
+  fun fetchAdminData() {
+    val fs = getFirestore() ?: return
+
+    // 1. Fetch all registered users
+    fs.collection("users").get()
+      .addOnSuccessListener { result ->
+        val userList = result.documents.map { doc ->
+          RegisteredUser(
+            uid = doc.getString("uid") ?: doc.id,
+            name = doc.getString("name") ?: "Passenger",
+            mobile = doc.getString("mobile") ?: "",
+            address = doc.getString("address") ?: "",
+            email = doc.getString("email") ?: "",
+            role = doc.getString("role") ?: "customer",
+            registeredAt = doc.getString("registeredAt") ?: "Recently",
+            lastActive = doc.getString("lastActive") ?: "Active",
+            deviceModel = doc.getString("deviceModel") ?: "",
+            androidVersion = doc.getString("androidVersion") ?: ""
+          )
+        }.sortedByDescending { it.role == "admin" }
+
+        if (userList.isEmpty()) {
+          val fallback = mutableListOf<RegisteredUser>()
+          _userSession.value?.let { s ->
+            fallback.add(
+              RegisteredUser(
+                uid = s.uid,
+                name = s.displayName,
+                mobile = s.mobile,
+                address = s.address,
+                email = s.email,
+                role = if (checkIsAdmin(s.email)) "admin" else "customer",
+                registeredAt = "Active Today",
+                lastActive = "Online"
+              )
+            )
+          }
+          fallback.add(
+            RegisteredUser(
+              uid = "admin_azaz",
+              name = "Azaz Madkiya (Admin)",
+              mobile = "+91 82000 19788",
+              address = "Rajkot, Gujarat",
+              email = "azazmadkiya@gmail.com",
+              role = "admin",
+              registeredAt = "01 Oct 2026",
+              lastActive = "Online"
+            )
+          )
+          _allUsers.value = fallback
+        } else {
+          _allUsers.value = userList
+        }
+      }
+      .addOnFailureListener {
+        val fallback = mutableListOf<RegisteredUser>()
+        _userSession.value?.let { s ->
+          fallback.add(
+            RegisteredUser(
+              uid = s.uid,
+              name = s.displayName,
+              mobile = s.mobile,
+              address = s.address,
+              email = s.email,
+              role = if (checkIsAdmin(s.email)) "admin" else "customer",
+              registeredAt = "Active Today",
+              lastActive = "Online"
+            )
+          )
+        }
+        fallback.add(
+          RegisteredUser(
+            uid = "admin_azaz",
+            name = "Azaz Madkiya (Admin)",
+            mobile = "+91 82000 19788",
+            address = "Rajkot, Gujarat",
+            email = "azazmadkiya@gmail.com",
+            role = "admin",
+            registeredAt = "01 Oct 2026",
+            lastActive = "Online"
+          )
+        )
+        _allUsers.value = fallback
+      }
+
+    // 2. Fetch all bookings for admin
+    fs.collection("bookings").get()
+      .addOnSuccessListener { result ->
+        _allBookingsAdmin.value = result.documents.map { doc -> doc.data ?: emptyMap() }
+      }
+
+    // 3. Fetch all notifications
+    fs.collection("notifications").get()
+      .addOnSuccessListener { result ->
+        val notifs = result.documents.map { doc ->
+          AppNotification(
+            id = doc.id,
+            title = doc.getString("title") ?: "",
+            message = doc.getString("message") ?: "",
+            targetUserId = doc.getString("targetUserId") ?: "ALL",
+            targetUserName = doc.getString("targetUserName") ?: "All Users",
+            sentBy = doc.getString("sentBy") ?: "Admin",
+            date = doc.getString("date") ?: "",
+            timestamp = doc.getLong("timestamp") ?: 0L,
+            isRead = doc.getBoolean("isRead") ?: false
+          )
+        }.sortedByDescending { it.timestamp }
+        _sentNotifications.value = notifs
+        filterUserNotifications(notifs)
+      }
+  }
+
+  private fun startNotificationListener() {
+    val fs = getFirestore() ?: return
+    try {
+      notificationListener?.remove()
+      notificationListener = fs.collection("notifications")
+        .addSnapshotListener { snapshot, error ->
+          if (error != null || snapshot == null) return@addSnapshotListener
+          val notifs = snapshot.documents.map { doc ->
+            AppNotification(
+              id = doc.id,
+              title = doc.getString("title") ?: "",
+              message = doc.getString("message") ?: "",
+              targetUserId = doc.getString("targetUserId") ?: "ALL",
+              targetUserName = doc.getString("targetUserName") ?: "All Users",
+              sentBy = doc.getString("sentBy") ?: "Admin",
+              date = doc.getString("date") ?: "",
+              timestamp = doc.getLong("timestamp") ?: 0L,
+              isRead = doc.getBoolean("isRead") ?: false
+            )
+          }.sortedByDescending { it.timestamp }
+          _sentNotifications.value = notifs
+          filterUserNotifications(notifs)
+        }
+    } catch (e: Exception) {
+      android.util.Log.e("RickshawViewModel", "Notification listener error", e)
+    }
+  }
+
+  private fun filterUserNotifications(allNotifs: List<AppNotification>) {
+    val currentUid = _userSession.value?.uid ?: _currentUser.value?.uid ?: "guest"
+    val filtered = allNotifs.filter { it.targetUserId == "ALL" || it.targetUserId == currentUid }
+    _userNotifications.value = filtered
+    _unreadNotificationCount.value = filtered.count { !it.isRead }
+  }
+
+  fun sendNotificationFromAdmin(
+    context: Context,
+    title: String,
+    message: String,
+    targetUserId: String,
+    targetUserName: String,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    val cleanTitle = title.trim()
+    val cleanMessage = message.trim()
+
+    if (cleanTitle.isEmpty()) {
+      onError("Notification title cannot be empty.")
+      return
+    }
+    if (cleanMessage.isEmpty()) {
+      onError("Notification message cannot be empty.")
+      return
+    }
+
+    adminNotifSending.value = true
+    adminNotifStatusMessage.value = null
+
+    val now = java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
+    val timestamp = System.currentTimeMillis()
+    val adminSender = _userSession.value?.email ?: "azazmadkiya@gmail.com"
+
+    val notifMap = hashMapOf(
+      "title" to cleanTitle,
+      "message" to cleanMessage,
+      "targetUserId" to targetUserId,
+      "targetUserName" to targetUserName,
+      "sentBy" to adminSender,
+      "date" to now,
+      "timestamp" to timestamp,
+      "isRead" to false
+    )
+
+    // 1. Show immediate Android system notification on the device
+    NotificationHelper.showNotification(
+      context = context,
+      title = cleanTitle,
+      body = if (targetUserId == "ALL") "📢 [To All Users] $cleanMessage" else "👤 [To: $targetUserName] $cleanMessage",
+      notificationId = timestamp.toInt()
+    )
+
+    // 2. Persist to Firestore notifications collection
+    val fs = getFirestore()
+    if (fs != null) {
+      fs.collection("notifications").add(notifMap)
+        .addOnSuccessListener { docRef ->
+          adminNotifSending.value = false
+          val newNotif = AppNotification(
+            id = docRef.id,
+            title = cleanTitle,
+            message = cleanMessage,
+            targetUserId = targetUserId,
+            targetUserName = targetUserName,
+            sentBy = adminSender,
+            date = now,
+            timestamp = timestamp
+          )
+          val updated = listOf(newNotif) + _sentNotifications.value
+          _sentNotifications.value = updated
+          filterUserNotifications(updated)
+
+          adminNotifTitle.value = ""
+          adminNotifMessage.value = ""
+          adminNotifStatusMessage.value = "Notification sent successfully to $targetUserName!"
+          onSuccess("Notification delivered successfully!")
+        }
+        .addOnFailureListener { e ->
+          adminNotifSending.value = false
+          val newNotif = AppNotification(
+            id = "local_${System.currentTimeMillis()}",
+            title = cleanTitle,
+            message = cleanMessage,
+            targetUserId = targetUserId,
+            targetUserName = targetUserName,
+            sentBy = adminSender,
+            date = now,
+            timestamp = timestamp
+          )
+          val updated = listOf(newNotif) + _sentNotifications.value
+          _sentNotifications.value = updated
+          filterUserNotifications(updated)
+
+          adminNotifTitle.value = ""
+          adminNotifMessage.value = ""
+          adminNotifStatusMessage.value = "Notification sent locally to $targetUserName!"
+          onSuccess("Notification sent!")
+        }
+    } else {
+      adminNotifSending.value = false
+      val newNotif = AppNotification(
+        id = "local_${System.currentTimeMillis()}",
+        title = cleanTitle,
+        message = cleanMessage,
+        targetUserId = targetUserId,
+        targetUserName = targetUserName,
+        sentBy = adminSender,
+        date = now,
+        timestamp = timestamp
+      )
+      val updated = listOf(newNotif) + _sentNotifications.value
+      _sentNotifications.value = updated
+      filterUserNotifications(updated)
+
+      adminNotifTitle.value = ""
+      adminNotifMessage.value = ""
+      adminNotifStatusMessage.value = "Notification sent locally to $targetUserName!"
+      onSuccess("Notification sent!")
+    }
+  }
+
+  fun deleteNotification(notificationId: String, onComplete: () -> Unit = {}) {
+    val fs = getFirestore()
+    if (fs != null && !notificationId.startsWith("local_")) {
+      fs.collection("notifications").document(notificationId).delete()
+    }
+    val updated = _sentNotifications.value.filter { it.id != notificationId }
+    _sentNotifications.value = updated
+    filterUserNotifications(updated)
+    onComplete()
   }
 
   fun fetchFirestoreBookings() {
@@ -293,19 +709,6 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
       fbUser.updateProfile(profileUpdates)
     }
 
-    // Save to Firestore users collection
-    val fs = getFirestore()
-    if (fs != null) {
-      val userMap = hashMapOf(
-        "name" to cleanName,
-        "mobile" to cleanMobile,
-        "address" to cleanAddress,
-        "email" to cleanEmail,
-        "updatedAt" to java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault()).format(java.util.Date())
-      )
-      fs.collection("users").document(currentUid).set(userMap)
-    }
-
     onComplete()
   }
 
@@ -346,6 +749,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
             authPassword.value = ""
             fetchFirestoreBookings()
             fetchReviews()
+            fetchAdminData()
             onSuccess()
           } else {
             val savedEmail = prefs.getString("user_email", null)
@@ -353,6 +757,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
             if ((savedEmail != null && savedEmail.equals(effectiveEmail, ignoreCase = true)) ||
                 (savedPhone != null && savedPhone == emailOrMobile)) {
               _isLoggedIn.value = true
+              _isAdmin.value = checkIsAdmin(effectiveEmail)
               onSuccess()
             } else {
               authError.value = task.exception?.localizedMessage ?: "Sign in failed"
@@ -379,7 +784,6 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val mobile = authMobile.value.trim()
     val address = authAddress.value.trim()
 
-    // Name, Mobile, and Address are MANDATORY; Email is OPTIONAL
     if (name.isEmpty()) {
       authError.value = "Full Name is mandatory."
       return
@@ -435,6 +839,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
             authAddress.value = ""
             fetchFirestoreBookings()
             fetchReviews()
+            fetchAdminData()
             onSuccess()
           } else {
             val msg = task.exception?.localizedMessage ?: "Sign up failed"
@@ -483,6 +888,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     _currentUser.value = null
     _userSession.value = null
     _isLoggedIn.value = false
+    _isAdmin.value = false
     _firestoreBookings.value = emptyList()
   }
 
@@ -512,10 +918,8 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val pLink = pickupLink.value.trim()
     val d = drop.value.trim()
     val dLink = dropLink.value.trim()
-    val b = bhadaAmount.value.trim()
     val n = notes.value.trim()
 
-    // Mandatory Booking Fields validation (Only Pickup and Drop; Fare is decided by Driver)
     if (p.isEmpty()) {
       bookingError.value = "Pickup Location is mandatory. Please fill in pickup location."
       return
@@ -530,7 +934,6 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     val pMobile = session?.mobile?.trim().orEmpty().ifEmpty { authMobile.value.trim() }
     val pAddress = session?.address?.trim().orEmpty().ifEmpty { authAddress.value.trim() }
 
-    // Passenger Profile details are mandatory so driver knows who to pick up
     if (pName.isEmpty() || pMobile.isEmpty() || pAddress.isEmpty()) {
       bookingError.value = "Please complete your Full Name, Mobile Number, and Address in Profile tab first."
       return
@@ -583,6 +986,7 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     if (fs != null) {
       fs.collection("bookings").add(bookingMap).addOnSuccessListener {
         fetchFirestoreBookings()
+        fetchAdminData()
       }
     }
 
@@ -608,9 +1012,22 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     onComplete()
   }
 
-  fun callDriver(context: Context) {
+  fun callDriver(context: Context, number: String = "+918200019788") {
     try {
-      val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+918200019788"))
+      val cleanNumber = number.filter { it.isDigit() || it == '+' }
+      val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$cleanNumber"))
+      context.startActivity(intent)
+    } catch (e: Exception) {
+      // Ignore
+    }
+  }
+
+  fun openWhatsAppChat(context: Context, number: String = "+918200019788", customMsg: String = "") {
+    try {
+      val cleanNumber = number.filter { it.isDigit() }
+      val target = if (cleanNumber.length == 10) "91$cleanNumber" else cleanNumber
+      val encoded = URLEncoder.encode(customMsg.ifEmpty { "Hello from Rajak Rickshawwala App" }, "UTF-8")
+      val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$target?text=$encoded"))
       context.startActivity(intent)
     } catch (e: Exception) {
       // Ignore
@@ -661,5 +1078,11 @@ class RickshawViewModel(application: Application) : AndroidViewModel(application
     viewModelScope.launch {
       repository.deleteBooking(id)
     }
+  }
+
+  override fun onCleared() {
+    super.onCleared()
+    notificationListener?.remove()
+    usersListener?.remove()
   }
 }

@@ -2,16 +2,22 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.location.Geocoder
+import android.location.Location
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,16 +29,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.location.Geocoder
-import android.location.Location
 import androidx.core.content.ContextCompat
+import com.example.viewmodel.RickshawViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.example.viewmodel.RickshawViewModel
 import java.util.Locale
 
 @Composable
-fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
+fun HomeScreen(
+  viewModel: RickshawViewModel,
+  onNavigateToPayment: () -> Unit,
+  onNavigateToAdmin: () -> Unit = {}
+) {
   val context = LocalContext.current
   val pickup by viewModel.pickup.collectAsState()
   val pickupLink by viewModel.pickupLink.collectAsState()
@@ -41,8 +49,12 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
   val notes by viewModel.notes.collectAsState()
   val bookingError by viewModel.bookingError.collectAsState()
   val userSession by viewModel.userSession.collectAsState()
+  val isAdmin by viewModel.isAdmin.collectAsState()
+  val userNotifs by viewModel.userNotifications.collectAsState()
+  val unreadCount by viewModel.unreadNotificationCount.collectAsState()
 
   var isFetchingLocation by remember { mutableStateOf(false) }
+  var showNotifDialog by remember { mutableStateOf(false) }
 
   fun applyLocation(location: Location) {
     isFetchingLocation = false
@@ -139,7 +151,6 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
     }
   }
 
-  // Automatically fetch current GPS location when screen opens if permission is already granted
   LaunchedEffect(Unit) {
     val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
     val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -157,6 +168,32 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
       .padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp)
   ) {
+    // Admin Top Banner Alert if Admin
+    if (isAdmin) {
+      Card(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clickable { onNavigateToAdmin() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF10B981).copy(alpha = 0.15f))
+      ) {
+        Row(
+          modifier = Modifier.padding(14.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color(0xFF10B981))
+            Column {
+              Text("Admin Mode Active", fontWeight = FontWeight.Bold, color = Color(0xFF10B981), fontSize = 14.sp)
+              Text("Tap to view all registered users & send notices", style = MaterialTheme.typography.bodySmall)
+            }
+          }
+          Icon(Icons.Default.ArrowForward, contentDescription = "Open Admin", tint = Color(0xFF10B981))
+        }
+      }
+    }
+
     // Top Driver Profile Banner Card
     Card(
       modifier = Modifier.fillMaxWidth(),
@@ -215,18 +252,56 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
             }
           }
 
-          IconButton(
-            onClick = { viewModel.shareApp(context) },
-            modifier = Modifier
-              .size(42.dp)
-              .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), CircleShape)
-          ) {
-            Icon(
-              imageVector = Icons.Default.Share,
-              contentDescription = "Share App",
-              tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.size(20.dp)
-            )
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Notification Bell with Badge
+            Box {
+              IconButton(
+                onClick = { showNotifDialog = true },
+                modifier = Modifier
+                  .size(42.dp)
+                  .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), CircleShape)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Notifications,
+                  contentDescription = "Notifications",
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(20.dp)
+                )
+              }
+              if (userNotifs.isNotEmpty()) {
+                Surface(
+                  color = Color(0xFFEF4444),
+                  shape = CircleShape,
+                  modifier = Modifier
+                    .size(18.dp)
+                    .align(Alignment.TopEnd)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Text(
+                      "${userNotifs.size}",
+                      color = Color.White,
+                      fontSize = 10.sp,
+                      fontWeight = FontWeight.Bold
+                    )
+                  }
+                }
+              }
+            }
+
+            // Share App Button
+            IconButton(
+              onClick = { viewModel.shareApp(context) },
+              modifier = Modifier
+                .size(42.dp)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), CircleShape)
+            ) {
+              Icon(
+                imageVector = Icons.Default.Share,
+                contentDescription = "Share App",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+              )
+            }
           }
         }
 
@@ -237,57 +312,39 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Star, contentDescription = "Rating", tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
-            Text("4.9 (500+ Rides)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+          Column {
+            Text(
+              text = "Direct Call / WhatsApp",
+              style = MaterialTheme.typography.labelMedium,
+              color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+            )
+            Text(
+              text = "+91 82000 19788",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
           }
 
-          Button(
-            onClick = { viewModel.callDriver(context) },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-          ) {
-            Icon(Icons.Default.Call, contentDescription = "Call", modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Call Now", fontWeight = FontWeight.Bold)
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(
+              onClick = { viewModel.callDriver(context) },
+              shape = RoundedCornerShape(12.dp),
+              colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+              Icon(Icons.Default.Call, contentDescription = "Call", tint = MaterialTheme.colorScheme.onPrimary)
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Call", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+            }
           }
         }
       }
     }
 
-    // Quick Action Banner (UPI Pay)
-    OutlinedCard(
-      onClick = onNavigateToPayment,
-      modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(16.dp)
-    ) {
-      Row(
-        modifier = Modifier.padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Box(
-          modifier = Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF10B981).copy(alpha = 0.15f)),
-          contentAlignment = Alignment.Center
-        ) {
-          Icon(Icons.Default.QrCodeScanner, contentDescription = "UPI", tint = Color(0xFF10B981))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-          Text("UPI Payment Portal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-          Text("Pay via Paytm / GPay (8200019788@paytm)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Icon(Icons.Default.ChevronRight, contentDescription = "Go", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-      }
-    }
-
-    // WhatsApp Booking Card
+    // Booking Card
     Card(
       modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(20.dp),
+      shape = RoundedCornerShape(24.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -295,168 +352,101 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
         modifier = Modifier.padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Box(
-            modifier = Modifier
-              .size(36.dp)
-              .clip(CircleShape)
-              .background(Color(0xFF25D366)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color.White, modifier = Modifier.size(20.dp))
-          }
-          Column {
-            Text(
-              text = "Book via WhatsApp",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold
-            )
-            Text(
-              text = "Direct booking with Rajak Bhai (+918200019788)",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        }
-
-        // Passenger Profile info banner
-        val pName = userSession?.displayName?.substringBefore(" | ")?.trim().orEmpty()
-        val pMobile = userSession?.mobile?.trim().orEmpty()
-        val pAddress = userSession?.address?.trim().orEmpty()
-        val hasSavedProfile = pName.isNotEmpty() && pMobile.isNotEmpty() && pAddress.isNotEmpty()
-
-        if (hasSavedProfile) {
-          Surface(
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Saved", tint = Color(0xFF10B981), modifier = Modifier.size(16.dp))
-                Text("Saved Passenger Profile (Auto-Attached)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-              }
-              Text("👤 $pName  •  📞 $pMobile", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-              Text("🏠 $pAddress", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-          }
-        } else {
-          Surface(
-            color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              Icon(Icons.Default.Info, contentDescription = "Notice", tint = Color(0xFFD97706), modifier = Modifier.size(20.dp))
-              Text("Save your Name, Mobile & Address once in the Profile tab so it attaches automatically without retyping!", style = MaterialTheme.typography.bodySmall, color = Color(0xFF92400E))
-            }
-          }
-        }
-
-        Button(
-          onClick = { requestLocationOrFetch() },
+        Row(
           modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-          ),
-          enabled = !isFetchingLocation
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          if (isFetchingLocation) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(18.dp),
-              strokeWidth = 2.dp,
-              color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Detecting current GPS location...", fontWeight = FontWeight.SemiBold)
-          } else {
-            Icon(Icons.Default.MyLocation, contentDescription = "GPS", modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "Book Auto Rickshaw Ride",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+          )
+        }
+
+        // 1. Pickup Location Input + Auto GPS detection button
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          OutlinedTextField(
+            value = pickup,
+            onValueChange = {
+              viewModel.pickup.value = it
+              viewModel.bookingError.value = null
+            },
+            label = { Text("Pickup Location * (Mandatory)") },
+            placeholder = { Text("Enter Landmark, Area or GPS Location") },
+            leadingIcon = {
+              Icon(Icons.Default.LocationOn, contentDescription = "Pickup", tint = MaterialTheme.colorScheme.primary)
+            },
+            trailingIcon = {
+              IconButton(
+                onClick = { requestLocationOrFetch() }
+              ) {
+                if (isFetchingLocation) {
+                  CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                  Icon(
+                    Icons.Default.MyLocation,
+                    contentDescription = "Detect GPS Location",
+                    tint = MaterialTheme.colorScheme.primary
+                  )
+                }
+              }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            isError = bookingError != null && pickup.isBlank()
+          )
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
             Text(
-              if (pickup.isEmpty()) "📍 Auto-Detect Current GPS Pickup" else "🔄 Refresh Current GPS Location",
-              fontWeight = FontWeight.SemiBold
+              text = if (pickupLink.isNotEmpty()) "✅ GPS auto-detected" else "💡 Tap GPS icon to auto-detect",
+              style = MaterialTheme.typography.bodySmall,
+              color = if (pickupLink.isNotEmpty()) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            TextButton(
+              onClick = { requestLocationOrFetch() },
+              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+              Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(modifier = Modifier.width(4.dp))
+              Text("Use Current GPS", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
           }
         }
 
-        // Mandatory Pickup Field with direct GPS trailing action
-        OutlinedTextField(
-          value = pickup,
-          onValueChange = {
-            viewModel.pickup.value = it
-            if (it.isNotEmpty()) viewModel.bookingError.value = null
-          },
-          label = { Text("Pickup Location / Landmark * (Mandatory)") },
-          leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = "Pickup", tint = MaterialTheme.colorScheme.primary) },
-          trailingIcon = {
-            if (isFetchingLocation) {
-              CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary
-              )
-            } else {
-              IconButton(onClick = { requestLocationOrFetch() }) {
-                Icon(
-                  Icons.Default.GpsFixed,
-                  contentDescription = "Autofill GPS",
-                  tint = MaterialTheme.colorScheme.primary
-                )
-              }
-            }
-          },
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          singleLine = true
-        )
-
-        // Optional Pickup Map Link
-        OutlinedTextField(
-          value = pickupLink,
-          onValueChange = { viewModel.pickupLink.value = it },
-          label = { Text("Pickup Location Map Link (Optional)") },
-          leadingIcon = { Icon(Icons.Default.Link, contentDescription = "Link") },
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          singleLine = true
-        )
-
-        // Mandatory Drop Field
+        // 2. Drop Destination Input
         OutlinedTextField(
           value = drop,
           onValueChange = {
             viewModel.drop.value = it
-            if (it.isNotEmpty()) viewModel.bookingError.value = null
+            viewModel.bookingError.value = null
           },
           label = { Text("Drop Destination * (Mandatory)") },
-          leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = "Drop", tint = Color(0xFFEF4444)) },
+          placeholder = { Text("e.g. Bus Stand, Railway Station, Mall, Hospital") },
+          leadingIcon = {
+            Icon(Icons.Default.Place, contentDescription = "Drop Destination", tint = Color(0xFFEF4444))
+          },
           modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          singleLine = true
+          shape = RoundedCornerShape(14.dp),
+          isError = bookingError != null && drop.isBlank()
         )
 
-        // Optional Drop Map Link
-        OutlinedTextField(
-          value = dropLink,
-          onValueChange = { viewModel.dropLink.value = it },
-          label = { Text("Drop Destination Map Link (Optional)") },
-          leadingIcon = { Icon(Icons.Default.Link, contentDescription = "Link") },
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          singleLine = true
-        )
-
-        // Optional Notes Field
+        // 3. Notes / Passenger luggage
         OutlinedTextField(
           value = notes,
           onValueChange = { viewModel.notes.value = it },
-          label = { Text("Notes / Passenger count / Luggage (Optional)") },
-          leadingIcon = { Icon(Icons.Default.Note, contentDescription = "Notes") },
+          label = { Text("Special Notes / Luggage (Optional)") },
+          placeholder = { Text("e.g. 2 Passengers, 1 Big Suitcase, Urgent Ride") },
+          leadingIcon = {
+            Icon(Icons.Default.Notes, contentDescription = "Notes", tint = MaterialTheme.colorScheme.outline)
+          },
           modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          maxLines = 2
+          shape = RoundedCornerShape(14.dp)
         )
 
         // Error Feedback if any mandatory field is missing
@@ -494,11 +484,63 @@ fun HomeScreen(viewModel: RickshawViewModel, onNavigateToPayment: () -> Unit) {
           shape = RoundedCornerShape(16.dp),
           colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
         ) {
-          Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White)
+          Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
           Spacer(modifier = Modifier.width(8.dp))
           Text("Send Booking to WhatsApp", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
       }
     }
+  }
+
+  // Notification Inbox Dialog
+  if (showNotifDialog) {
+    AlertDialog(
+      onDismissRequest = { showNotifDialog = false },
+      title = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+          Text("Notification Inbox", fontWeight = FontWeight.Bold)
+        }
+      },
+      text = {
+        if (userNotifs.isEmpty()) {
+          Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+              Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
+              Spacer(modifier = Modifier.height(6.dp))
+              Text("No notifications received yet", color = Color.Gray, fontSize = 13.sp)
+            }
+          }
+        } else {
+          LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 350.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            items(userNotifs) { notif ->
+              Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+              ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                  ) {
+                    Text(notif.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                    Text(notif.date, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                  }
+                  Text(notif.message, style = MaterialTheme.typography.bodySmall)
+                }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(onClick = { showNotifDialog = false }) {
+          Text("Close")
+        }
+      }
+    )
   }
 }

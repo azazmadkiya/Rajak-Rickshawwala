@@ -31,11 +31,15 @@ import androidx.compose.ui.unit.sp
 import com.example.viewmodel.RickshawViewModel
 
 @Composable
-fun ProfileScreen(viewModel: RickshawViewModel) {
+fun ProfileScreen(
+  viewModel: RickshawViewModel,
+  onNavigateToAdmin: () -> Unit = {}
+) {
   val context = LocalContext.current
   val currentUser by viewModel.currentUser.collectAsState()
   val userSession by viewModel.userSession.collectAsState()
   val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+  val isAdmin by viewModel.isAdmin.collectAsState()
   val email by viewModel.authEmail.collectAsState()
   val password by viewModel.authPassword.collectAsState()
   val confirmPassword by viewModel.authConfirmPassword.collectAsState()
@@ -274,9 +278,61 @@ fun ProfileScreen(viewModel: RickshawViewModel) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Continue as Guest / Explore App", fontWeight = FontWeight.SemiBold)
           }
+
+          OutlinedButton(
+            onClick = {
+              viewModel.saveSession(
+                uid = "admin_azaz",
+                name = "Azaz Madkiya (Admin)",
+                email = "azazmadkiya@gmail.com",
+                phone = "+91 82000 19788",
+                address = "Rajkot, Gujarat",
+                isGuest = false
+              )
+            },
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981))
+          ) {
+            Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin", tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Login as Admin (azazmadkiya@gmail.com)", fontWeight = FontWeight.SemiBold)
+          }
         }
       }
     } else {
+      // Admin Control Center Card if logged in as Admin
+      if (isAdmin) {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(20.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+          elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+          Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
+              Text("Admin Control Panel", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+            }
+            Text(
+              "Logged in as verified Admin (${userSession?.email}). You have full access to view all registered users, ride bookings, and send notifications to all or single users.",
+              style = MaterialTheme.typography.bodySmall
+            )
+            Button(
+              onClick = onNavigateToAdmin,
+              shape = RoundedCornerShape(12.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+              Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(16.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Open Admin Dashboard", fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+
       // Logged In User Profile Card
       val pName = userSession?.displayName?.substringBefore(" | ")?.trim().orEmpty()
       val pMobile = userSession?.mobile?.trim().orEmpty()

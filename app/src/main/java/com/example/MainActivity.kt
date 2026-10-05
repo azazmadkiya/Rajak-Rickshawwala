@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
       val viewModel: RickshawViewModel = viewModel()
       val isDark by viewModel.isDarkMode.collectAsState()
       val isLoggedIn by viewModel.isLoggedIn.collectAsState()
+      val isAdmin by viewModel.isAdmin.collectAsState()
       val navController = rememberNavController()
       var showSplash by remember { mutableStateOf(true) }
 
@@ -40,7 +41,12 @@ class MainActivity : ComponentActivity() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
           ) {
-            ProfileScreen(viewModel = viewModel)
+            ProfileScreen(
+              viewModel = viewModel,
+              onNavigateToAdmin = {
+                navController.navigate("admin")
+              }
+            )
           }
         } else {
           val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -86,6 +92,20 @@ class MainActivity : ComponentActivity() {
                     }
                   }
                 )
+                if (isAdmin) {
+                  NavigationBarItem(
+                    icon = { Icon(Icons.Default.AdminPanelSettings, contentDescription = "Admin") },
+                    label = { Text("Admin") },
+                    selected = currentRoute == "admin",
+                    onClick = {
+                      navController.navigate("admin") {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                      }
+                    }
+                  )
+                }
               }
             }
           ) { innerPadding ->
@@ -97,14 +117,21 @@ class MainActivity : ComponentActivity() {
               composable("home") {
                 HomeScreen(
                   viewModel = viewModel,
-                  onNavigateToPayment = { navController.navigate("payment") }
+                  onNavigateToPayment = { navController.navigate("payment") },
+                  onNavigateToAdmin = { navController.navigate("admin") }
                 )
               }
               composable("payment") {
                 PaymentScreen(viewModel = viewModel)
               }
               composable("profile") {
-                ProfileScreen(viewModel = viewModel)
+                ProfileScreen(
+                  viewModel = viewModel,
+                  onNavigateToAdmin = { navController.navigate("admin") }
+                )
+              }
+              composable("admin") {
+                AdminScreen(viewModel = viewModel)
               }
             }
           }
